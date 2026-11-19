@@ -146,34 +146,53 @@
           <h2 id="stats-title">Heute</h2>
           <p id="stats-date"></p>
         </div>
+        <span class="live-badge" id="live-badge" hidden><i aria-hidden="true"></i>Live</span>
       </div>
 
+      <p class="stats-message" id="stats-message"></p>
+
       <div class="stat-tiles">
-        <div class="stat-tile">
+        <div class="stat-tile" id="session-tile">
           <span class="stat-value" id="stat-sessions">0</span>
           <span class="stat-label" id="stat-goal">von 8 Einheiten</span>
         </div>
         <div class="stat-tile">
           <span class="stat-value" id="stat-minutes">0 min</span>
-          <span class="stat-label">Fokuszeit</span>
+          <span class="stat-label">Fokuszeit heute</span>
         </div>
-        <div class="stat-tile">
+        <div class="stat-tile" id="streak-tile">
           <span class="stat-value" id="stat-streak">0</span>
           <span class="stat-label" id="stat-streak-label">Tage in Folge</span>
         </div>
       </div>
 
-      <div class="goal-bar" id="goal-bar" role="progressbar" aria-label="Tagesziel" aria-valuemin="0" aria-valuemax="8" aria-valuenow="0">
-        <span id="goal-fill"></span>
+      <div class="goal">
+        <div class="goal-head">
+          <span>Tagesziel</span>
+          <span id="goal-text">0 / 8</span>
+        </div>
+        <div class="goal-bar" id="goal-bar" role="progressbar" aria-label="Tagesziel" aria-valuemin="0" aria-valuemax="8" aria-valuenow="0">
+          <span class="goal-fill" id="goal-fill"></span>
+          <span class="goal-live" id="goal-live"></span>
+        </div>
       </div>
 
       <div>
-        <h3 class="mini-heading">Letzte 7 Tage</h3>
+        <div class="mini-head">
+          <h3 class="mini-heading">Letzte 7 Tage</h3>
+          <span class="chart-legend"><i aria-hidden="true"></i>Tagesziel</span>
+        </div>
         <div class="week-chart" id="week-chart" role="img"></div>
       </div>
 
+      <div class="records">
+        <div class="record"><span class="record-value" id="stat-week">0 min</span><span class="record-label">Diese Woche</span></div>
+        <div class="record"><span class="record-value" id="stat-best">0 min</span><span class="record-label">Bester Tag</span></div>
+        <div class="record"><span class="record-value" id="stat-total">0 min</span><span class="record-label">Insgesamt</span></div>
+      </div>
+
       <div>
-        <h3 class="mini-heading">Erledigt</h3>
+        <h3 class="mini-heading" id="recent-heading">Erledigt heute</h3>
         <ul class="recent-list" id="recent-list"></ul>
       </div>
     </section>

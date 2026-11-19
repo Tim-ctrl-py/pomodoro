@@ -48,11 +48,18 @@ const TICK_INTERVAL_MS = 250;
 const TOAST_DURATION_MS = 7000;
 const EXTEND_MINUTES = 5;
 const MAX_PHASE_MINUTES = 180;
-const MIN_LOGGED_FOCUS_MS = MS_PER_MINUTE; // partial focus time below this is not counted
 const TASK_MAX_LENGTH = 80;
 
 const STATS_DAYS_SHOWN = 7;
-const STATS_DAYS_KEPT = 120;
+const STATS_DAYS_KEPT = 400;
+const STATS_FLUSH_INTERVAL_MS = 10 * MS_PER_SECOND; // how often running focus time is saved
+const MIN_PARTIAL_LOG_MS = 5 * MS_PER_MINUTE; // unfinished units this long still appear in the list
+const MIN_STREAK_MINUTES = 10; // focus time that keeps the streak alive without a finished unit
+const MIN_RECORD_MINUTES = 30; // a "new best day" is only celebrated above this
+const MILESTONE_HOURS = [1, 5, 10, 25, 50, 100, 250, 500, 1000];
+const CONFETTI_PIECES = 48;
+const CONFETTI_DURATION_MS = 3200;
+const TOAST_QUEUE_LIMIT = 3;
 const LOG_ENTRIES_KEPT = 300;
 const RECENT_SESSIONS_SHOWN = 5;
 
@@ -124,6 +131,10 @@ const elements = {
   soundSliders: document.querySelectorAll('[data-sound-layer]'),
   rainCanvas: $('rain-canvas'),
   statsDate: $('stats-date'),
+  liveBadge: $('live-badge'),
+  statsMessage: $('stats-message'),
+  sessionTile: $('session-tile'),
+  streakTile: $('streak-tile'),
   statSessions: $('stat-sessions'),
   statGoal: $('stat-goal'),
   statMinutes: $('stat-minutes'),
@@ -131,7 +142,13 @@ const elements = {
   statStreakLabel: $('stat-streak-label'),
   goalBar: $('goal-bar'),
   goalFill: $('goal-fill'),
+  goalLive: $('goal-live'),
+  goalText: $('goal-text'),
   weekChart: $('week-chart'),
+  statWeek: $('stat-week'),
+  statBest: $('stat-best'),
+  statTotal: $('stat-total'),
+  recentHeading: $('recent-heading'),
   recentList: $('recent-list'),
   settingsDialog: $('settings-dialog'),
   settingsForm: $('settings-form'),
@@ -160,6 +177,7 @@ const state = {
   endTimestamp: null, // system time (ms) when the running phase ends; null while not running
   intervalId: null,
   task: '',
+  focusCreditedMs: 0, // part of the current focus phase that is already in the stats
 };
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -169,6 +187,9 @@ let toastTimeoutId = null;
 let wakeLock = null;
 let wakeLockPending = false;
 let renderedStatsDay = '';
+let lastStatsKey = '';
+let lastStatsFlushAt = 0;
+const toastQueue = [];
 let lastFaviconKey = '';
 
 // ---------------------------------------------------------------------------
@@ -246,8 +267,8 @@ function saveSettings() {
 // ---------------------------------------------------------------------------
 
 function saveSession() {
-  const { phase, round, phaseDurationMs, remainingMs, endTimestamp, task } = state;
-  writeJson(STORAGE_KEYS.session, { phase, round, phaseDurationMs, remainingMs, endTimestamp, task });
+  const { phase, round, phaseDurationMs, remainingMs, endTimestamp, task, focusCreditedMs } = state;
+  writeJson(STORAGE_KEYS.session, { phase, round, phaseDurationMs, remainingMs, endTimestamp, task, focusCreditedMs });
 }
 
 /** Restores the saved session. Returns 'resume', 'expired', 'paused' or null (nothing saved). */
@@ -267,6 +288,9 @@ function restoreSession() {
   state.remainingMs = Number.isFinite(remaining) && remaining > 0
     ? Math.min(remaining, state.phaseDurationMs)
     : state.phaseDurationMs;
+  state.focusCreditedMs = state.phase === 'focus'
+    ? clampNumber(toNumber(saved.focusCreditedMs), 0, state.phaseDurationMs)
+    : 0;
 
   if (Number.isFinite(saved.endTimestamp)) {
     const left = saved.endTimestamp - Date.now();
@@ -280,9 +304,11 @@ function restoreSession() {
 /** A phase ran out while the page was closed: count it, move on, but do not auto-start. */
 function completePhaseWhileAway() {
   const finishedPhase = state.phase;
-  if (finishedPhase === 'focus') recordFocus(state.phaseDurationMs, true);
+  state.remainingMs = 0; // the whole phase ran out
+  const { achievements } = finalizeFocusPhase(true);
   advanceToNextPhase();
-  showToast(`${PHASES[finishedPhase].label} ist abgelaufen, während die Seite geschlossen war.`);
+  showToast(`${PHASES[finishedPhase].label} ist abgelaufen, während die Seite geschlossen war – sie zählt trotzdem.`);
+  showAchievements(achievements);
   commit();
 }
 
@@ -316,6 +342,7 @@ function startTimer() {
   // The end time is anchored to the system clock, so throttled or delayed ticks cannot cause drift.
   state.endTimestamp = Date.now() + state.remainingMs;
   state.intervalId = setInterval(tick, TICK_INTERVAL_MS);
+  lastStatsFlushAt = Date.now();
   commit();
 }
 
@@ -323,6 +350,7 @@ function pauseTimer() {
   if (!isRunning()) return;
   state.remainingMs = getRemainingMs();
   stopTicking();
+  showAchievements(flushFocusProgress());
   commit();
 }
 
@@ -343,7 +371,7 @@ function stopTicking() {
 }
 
 function resetPhase() {
-  commitFocusProgress();
+  showAchievements(finalizeFocusPhase(false).achievements);
   stopTicking();
   state.phaseDurationMs = getPhaseDurationMs(state.phase);
   state.remainingMs = state.phaseDurationMs;
@@ -351,7 +379,7 @@ function resetPhase() {
 }
 
 function resetCycle() {
-  commitFocusProgress();
+  showAchievements(finalizeFocusPhase(false).achievements);
   stopTicking();
   state.phase = 'focus';
   state.round = 1;
@@ -377,7 +405,7 @@ function handleResetButton() {
 
 function skipPhase() {
   const wasRunning = isRunning();
-  commitFocusProgress();
+  showAchievements(finalizeFocusPhase(false).achievements);
   stopTicking();
   advanceToNextPhase();
   if (wasRunning) startTimer();
@@ -399,14 +427,17 @@ function tick() {
     finishPhase();
     return;
   }
-  if (dayKey() !== renderedStatsDay) renderStats(); // the day rolled over at midnight
+  if (state.phase === 'focus' && Date.now() - lastStatsFlushAt >= STATS_FLUSH_INTERVAL_MS) {
+    showAchievements(flushFocusProgress());
+  }
   render();
+  renderLiveStats();
 }
 
 function finishPhase() {
   const finishedPhase = state.phase;
   stopTicking();
-  const goalReached = finishedPhase === 'focus' && recordFocus(state.phaseDurationMs, true);
+  const { goalReached, achievements } = finalizeFocusPhase(true);
   advanceToNextPhase();
 
   const autoStart = state.phase === 'focus' ? settings.autoStartFocus : settings.autoStartBreaks;
@@ -414,6 +445,7 @@ function finishPhase() {
   if (goalReached) message += ' Tagesziel erreicht 🎉';
   if (!autoStart) message += ' Drück Start, wenn du bereit bist.';
   announcePhaseEnd(finishedPhase, message);
+  showAchievements(achievements);
 
   if (autoStart) startTimer();
   else commit();
@@ -439,6 +471,8 @@ function advanceToNextPhase() {
 
 // ---------------------------------------------------------------------------
 // Statistics
+// Focus time is written to the stats continuously while you learn (not only when a
+// phase ends), so the numbers count up live and nothing is lost if the app closes.
 // ---------------------------------------------------------------------------
 
 function dayKey(date = new Date()) {
@@ -447,11 +481,33 @@ function dayKey(date = new Date()) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
+function toNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
 function loadStats() {
   const saved = readJson(STORAGE_KEYS.stats);
+  const days = {};
+  if (saved?.days && typeof saved.days === 'object') {
+    Object.entries(saved.days).forEach(([key, day]) => {
+      days[key] = { minutes: toNumber(day?.minutes), sessions: Math.round(toNumber(day?.sessions)) };
+    });
+  }
+  const dayList = Object.entries(days);
+  const bestDay = dayList.reduce((best, [key, day]) => (day.minutes > best.minutes ? { key, minutes: day.minutes } : best), { key: '', minutes: 0 });
+
   return {
-    days: saved?.days && typeof saved.days === 'object' ? saved.days : {},
+    days,
     log: Array.isArray(saved?.log) ? saved.log.filter((entry) => Number.isFinite(entry?.ts)) : [],
+    // Totals and the best day are kept separately because old days are pruned eventually.
+    totals: saved?.totals && Number.isFinite(saved.totals.minutes)
+      ? { minutes: toNumber(saved.totals.minutes), sessions: Math.round(toNumber(saved.totals.sessions)) }
+      : {
+        minutes: dayList.reduce((sum, [, day]) => sum + day.minutes, 0),
+        sessions: dayList.reduce((sum, [, day]) => sum + day.sessions, 0),
+      },
+    best: saved?.best && Number.isFinite(saved.best.minutes) ? { key: String(saved.best.key), minutes: toNumber(saved.best.minutes) } : bestDay,
   };
 }
 
@@ -470,48 +526,147 @@ function getDayStats(key) {
   return stats.days[key] ?? { minutes: 0, sessions: 0 };
 }
 
-/** Adds focus time to today's stats. Returns true if this session just reached the daily goal. */
-function recordFocus(durationMs, completed) {
+function ensureDayStats(key) {
+  return stats.days[key] ?? (stats.days[key] = { minutes: 0, sessions: 0 });
+}
+
+function roundMinutes(minutes) {
+  return Math.round(minutes * 100) / 100;
+}
+
+/** Adds focus time to today and the totals. Returns the achievements it unlocked (as messages). */
+function addFocusTime(durationMs) {
+  if (durationMs <= 0) return [];
   const key = dayKey();
-  const day = stats.days[key] ?? (stats.days[key] = { minutes: 0, sessions: 0 });
-  day.minutes = Math.round((day.minutes + durationMs / MS_PER_MINUTE) * 10) / 10;
+  const day = ensureDayStats(key);
+  const minutes = durationMs / MS_PER_MINUTE;
+  const totalBefore = stats.totals.minutes;
+  day.minutes = roundMinutes(day.minutes + minutes);
+  stats.totals.minutes = roundMinutes(stats.totals.minutes + minutes);
+
+  const achievements = [];
+  if (day.minutes > stats.best.minutes) {
+    const previous = stats.best;
+    stats.best = { key, minutes: day.minutes };
+    // Announce a new record once per day, and only if there was a real record to beat.
+    if (previous.key !== key && previous.minutes >= MIN_RECORD_MINUTES) {
+      achievements.push({ message: 'Neuer Rekord: dein bester Lerntag bisher! 🏆', confetti: true });
+    }
+  }
+  const milestone = MILESTONE_HOURS.find((hours) => totalBefore < hours * 60 && stats.totals.minutes >= hours * 60);
+  if (milestone) {
+    achievements.push({ message: `Meilenstein: ${milestone} ${milestone === 1 ? 'Stunde' : 'Stunden'} Fokus insgesamt! 🚀`, confetti: true });
+  }
+  return achievements;
+}
+
+function getFocusElapsedMs() {
+  if (state.phase !== 'focus') return 0;
+  return clampNumber(state.phaseDurationMs - getRemainingMs(), 0, state.phaseDurationMs);
+}
+
+/** Focus time of the current phase that is not yet written to the stats (at most a few seconds). */
+function getUnsavedFocusMs() {
+  return Math.max(0, getFocusElapsedMs() - state.focusCreditedMs);
+}
+
+/** Writes the not-yet-counted focus time of the current phase into the stats. */
+function flushFocusProgress() {
+  const pendingMs = getUnsavedFocusMs();
+  lastStatsFlushAt = Date.now();
+  if (pendingMs <= 0) return [];
+  state.focusCreditedMs += pendingMs;
+  const achievements = addFocusTime(pendingMs);
+  saveStats();
+  saveSession();
+  return achievements;
+}
+
+/**
+ * Closes the current focus phase for the stats (finished, skipped or reset): counts the remaining
+ * time, logs the unit and starts the next phase's count at zero.
+ */
+function finalizeFocusPhase(completed) {
+  const result = { goalReached: false, achievements: [] };
+  if (state.phase !== 'focus') return result;
+  result.achievements = flushFocusProgress();
+  const creditedMs = state.focusCreditedMs;
+  state.focusCreditedMs = 0;
+
   if (completed) {
+    const day = ensureDayStats(dayKey());
     day.sessions += 1;
-    stats.log.push({ ts: Date.now(), minutes: Math.round(durationMs / MS_PER_MINUTE), task: state.task.trim() });
+    stats.totals.sessions += 1;
+    result.goalReached = day.sessions === settings.dailyGoal;
+  }
+  if (completed || creditedMs >= MIN_PARTIAL_LOG_MS) {
+    stats.log.push({
+      ts: Date.now(),
+      minutes: Math.max(1, Math.round(creditedMs / MS_PER_MINUTE)),
+      task: state.task.trim(),
+      ...(completed ? {} : { partial: true }),
+    });
   }
   saveStats();
-  renderStats();
-  return completed && day.sessions === settings.dailyGoal;
+  saveSession();
+  if (completed) celebrateUnit(result.goalReached);
+  // No render here: the phase has not moved on yet. Every caller re-renders via commit().
+  return result;
 }
 
-/** Counts focus time of an unfinished focus phase before it is discarded (skip, reset, new length). */
-function commitFocusProgress() {
-  if (state.phase !== 'focus') return;
-  const elapsedMs = state.phaseDurationMs - getRemainingMs();
-  if (elapsedMs >= MIN_LOGGED_FOCUS_MS) recordFocus(elapsedMs, false);
+function showAchievements(achievements) {
+  achievements.forEach(({ message, confetti }) => {
+    showToast(message);
+    if (confetti) launchConfetti();
+  });
 }
 
-function getStreak() {
+/** A day keeps the streak alive with one finished unit or a little focus time. */
+function dayCountsForStreak(day) {
+  return day.sessions > 0 || day.minutes >= MIN_STREAK_MINUTES;
+}
+
+/** Today's numbers including the few seconds that are not saved yet. */
+function getLiveToday() {
+  const day = getDayStats(dayKey());
+  return { minutes: day.minutes + getUnsavedFocusMs() / MS_PER_MINUTE, sessions: day.sessions };
+}
+
+function getStreak(today) {
   const date = new Date();
-  if (!(getDayStats(dayKey(date)).sessions > 0)) date.setDate(date.getDate() - 1); // today may still come
-  let streak = 0;
-  while (getDayStats(dayKey(date)).sessions > 0) {
+  const todayCounts = dayCountsForStreak(today);
+  let streak = todayCounts ? 1 : 0;
+  date.setDate(date.getDate() - 1);
+  while (dayCountsForStreak(getDayStats(dayKey(date)))) {
     streak += 1;
     date.setDate(date.getDate() - 1);
   }
-  return streak;
+  return { streak, todayCounts };
+}
+
+function getWeekMinutes(todayMinutes) {
+  const date = new Date();
+  const daysSinceMonday = (date.getDay() + 6) % 7;
+  let minutes = todayMinutes;
+  for (let offset = 1; offset <= daysSinceMonday; offset += 1) {
+    date.setDate(date.getDate() - 1);
+    minutes += getDayStats(dayKey(date)).minutes;
+  }
+  return minutes;
 }
 
 function formatMinutes(minutes) {
-  const rounded = Math.round(minutes);
+  const rounded = Math.floor(minutes + 0.001);
   if (rounded < 60) return `${rounded} min`;
   return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, '0')} h`;
 }
 
 function resetStats() {
   if (!window.confirm('Alle Statistiken unwiderruflich löschen?')) return;
-  stats = { days: {}, log: [] };
+  stats = { days: {}, log: [], totals: { minutes: 0, sessions: 0 }, best: { key: '', minutes: 0 } };
+  state.focusCreditedMs = getFocusElapsedMs(); // time before the reset does not come back
   saveStats();
+  saveSession();
   renderStats();
 }
 
@@ -530,6 +685,7 @@ function formatTime(ms) {
 function commit() {
   saveSession();
   render();
+  renderStats();
   ambience.setDucked(settings.duckAmbienceInBreaks && state.phase !== 'focus');
   syncWakeLock();
 }
@@ -632,37 +788,106 @@ function renderFavicon() {
 // Rendering: statistics
 // ---------------------------------------------------------------------------
 
-function renderStats() {
-  const todayKey = dayKey();
-  renderedStatsDay = todayKey;
-  const today = getDayStats(todayKey);
+/** Called on every tick: cheap live parts every time, the full card only when a number changes. */
+function renderLiveStats() {
+  const today = getLiveToday();
+  const remainingMinutes = Math.ceil(getRemainingMs() / MS_PER_MINUTE);
+  const key = [dayKey(), Math.floor(today.minutes), today.sessions, state.phase, isRunning(), remainingMinutes].join('|');
+  if (key !== lastStatsKey) renderStats();
+  else renderGoalProgress(today);
+}
+
+function getCurrentUnitFraction() {
+  return state.phase === 'focus' ? getFocusElapsedMs() / state.phaseDurationMs : 0;
+}
+
+function renderGoalProgress(today) {
   const goal = settings.dailyGoal;
-  const streak = getStreak();
-
-  elements.statsDate.textContent = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
-  elements.statSessions.textContent = String(today.sessions);
-  elements.statGoal.textContent = `von ${goal} ${goal === 1 ? 'Einheit' : 'Einheiten'}`;
-  elements.statMinutes.textContent = formatMinutes(today.minutes);
-  elements.statStreak.textContent = String(streak);
-  elements.statStreakLabel.textContent = streak === 1 ? 'Tag in Folge' : 'Tage in Folge';
-
+  const doneFraction = Math.min(1, today.sessions / goal);
+  const liveFraction = Math.min(1 - doneFraction, getCurrentUnitFraction() / goal);
+  elements.goalFill.style.width = `${doneFraction * 100}%`;
+  elements.goalLive.style.left = `${doneFraction * 100}%`;
+  elements.goalLive.style.width = `${liveFraction * 100}%`;
+  elements.goalBar.style.setProperty('--segments', String(Math.min(goal, 24)));
   elements.goalBar.setAttribute('aria-valuemax', String(goal));
   elements.goalBar.setAttribute('aria-valuenow', String(Math.min(today.sessions, goal)));
   elements.goalBar.classList.toggle('is-complete', today.sessions >= goal);
-  elements.goalFill.style.width = `${Math.min(1, today.sessions / goal) * 100}%`;
+}
 
-  renderWeekChart();
+function renderStats() {
+  const todayKey = dayKey();
+  const today = getLiveToday();
+  const goal = settings.dailyGoal;
+  const { streak, todayCounts } = getStreak(today);
+  const focusRunning = isRunning() && state.phase === 'focus';
+  renderedStatsDay = todayKey;
+  lastStatsKey = [todayKey, Math.floor(today.minutes), today.sessions, state.phase, isRunning(), Math.ceil(getRemainingMs() / MS_PER_MINUTE)].join('|');
+
+  elements.statsDate.textContent = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+  elements.liveBadge.hidden = !focusRunning;
+  elements.statsMessage.textContent = getMotivation(today, streak, todayCounts);
+
+  elements.statSessions.textContent = today.sessions >= goal ? `${today.sessions} ✓` : String(today.sessions);
+  elements.statGoal.textContent = `von ${goal} ${goal === 1 ? 'Einheit' : 'Einheiten'}`;
+  elements.sessionTile.classList.toggle('is-done', today.sessions >= goal);
+  elements.statMinutes.textContent = formatMinutes(today.minutes);
+  elements.statStreak.textContent = streak > 0 ? `🔥 ${streak}` : '0';
+  elements.statStreakLabel.textContent = getStreakLabel(streak, todayCounts);
+  elements.streakTile.classList.toggle('is-at-risk', streak > 0 && !todayCounts);
+  elements.streakTile.classList.toggle('is-active', todayCounts);
+  elements.goalText.textContent = `${today.sessions} / ${goal}`;
+  renderGoalProgress(today);
+
+  elements.statWeek.textContent = formatMinutes(getWeekMinutes(today.minutes));
+  elements.statBest.textContent = formatMinutes(Math.max(stats.best.minutes, today.minutes));
+  elements.statTotal.textContent = formatMinutes(stats.totals.minutes + getUnsavedFocusMs() / MS_PER_MINUTE);
+
+  renderWeekChart(today.minutes);
   renderRecentSessions(todayKey);
 }
 
-function renderWeekChart() {
+function getStreakLabel(streak, todayCounts) {
+  if (streak === 0) return 'Tage in Folge';
+  if (!todayCounts) return 'Heute lernen hält die Serie!';
+  return streak === 1 ? 'Tag in Folge' : 'Tage in Folge';
+}
+
+/** One short, honest line that reacts to where you are today. */
+function getMotivation(today, streak, todayCounts) {
+  const goal = settings.dailyGoal;
+  const left = goal - today.sessions;
+  const remainingMinutes = Math.ceil(getRemainingMs() / MS_PER_MINUTE);
+  const nextUnit = today.sessions + 1;
+
+  if (state.phase === 'focus' && isRunning()) {
+    if (left <= 0) return `Bonusrunde läuft – noch ${remainingMinutes} min. Alles ab jetzt ist extra 💪`;
+    if (left === 1) return `Letzte Einheit für dein Tagesziel – noch ${remainingMinutes} min!`;
+    return `Du bist im Flow – noch ${remainingMinutes} min bis Einheit ${nextUnit} geschafft ist.`;
+  }
+  if (state.phase !== 'focus') {
+    return left <= 0
+      ? 'Pause verdient – dein Tagesziel hast du heute schon geknackt.'
+      : `Pause verdient. Danach geht’s weiter mit Einheit ${nextUnit}.`;
+  }
+  if (left <= 0) return `Tagesziel geschafft – ${formatMinutes(today.minutes)} Fokus heute. Darauf kannst du stolz sein 🎉`;
+  if (streak > 0 && !todayCounts) return `Halte deine ${streak}-Tage-Serie am Leben – eine Einheit reicht.`;
+  if (today.sessions === 0 && today.minutes < 1) return 'Starte deine erste Einheit – der Anfang ist der schwerste Teil.';
+  if (left === 1) return 'Nur noch eine Einheit bis zu deinem Tagesziel!';
+  if (today.sessions >= goal / 2) return `Mehr als die Hälfte geschafft – noch ${left} Einheiten bis zum Ziel.`;
+  return `Guter Start! Noch ${left} Einheiten bis zu deinem Tagesziel.`;
+}
+
+function renderWeekChart(todayMinutes) {
   const days = [];
   for (let offset = STATS_DAYS_SHOWN - 1; offset >= 0; offset -= 1) {
     const date = new Date();
     date.setDate(date.getDate() - offset);
-    days.push({ date, minutes: getDayStats(dayKey(date)).minutes, isToday: offset === 0 });
+    const minutes = offset === 0 ? todayMinutes : getDayStats(dayKey(date)).minutes;
+    days.push({ date, minutes, isToday: offset === 0 });
   }
-  const maxMinutes = Math.max(...days.map((d) => d.minutes), 1);
+  const goalMinutes = settings.dailyGoal * settings.focusMinutes;
+  const scaleMinutes = Math.max(...days.map((d) => d.minutes), goalMinutes, 1);
+  elements.weekChart.style.setProperty('--goal-line', String(goalMinutes / scaleMinutes));
 
   elements.weekChart.replaceChildren(...days.map(({ date, minutes, isToday }) => {
     const column = document.createElement('div');
@@ -673,8 +898,9 @@ function renderWeekChart() {
     track.className = 'week-track';
     const bar = document.createElement('span');
     bar.className = 'week-bar';
-    bar.style.height = `${(minutes / maxMinutes) * 100}%`;
+    bar.style.height = `${(minutes / scaleMinutes) * 100}%`;
     if (minutes > 0) bar.classList.add('has-value');
+    if (minutes >= goalMinutes) bar.classList.add('is-goal');
     track.append(bar);
 
     const label = document.createElement('span');
@@ -689,34 +915,87 @@ function renderWeekChart() {
   elements.weekChart.setAttribute('aria-label', `Fokuszeit der letzten 7 Tage: ${summary}`);
 }
 
-function renderRecentSessions(todayKey) {
-  const entries = stats.log
-    .filter((entry) => dayKey(new Date(entry.ts)) === todayKey)
-    .slice(-RECENT_SESSIONS_SHOWN)
-    .reverse();
+function createRecentItem({ time, task, minutes, className, note }) {
+  const item = document.createElement('li');
+  if (className) item.className = className;
+  const timeElement = document.createElement('span');
+  timeElement.className = 'recent-time';
+  timeElement.textContent = time;
+  const taskElement = document.createElement('span');
+  taskElement.className = 'recent-task';
+  taskElement.textContent = task;
+  if (note) {
+    const noteElement = document.createElement('small');
+    noteElement.textContent = note;
+    taskElement.append(' ', noteElement);
+  }
+  const minutesElement = document.createElement('span');
+  minutesElement.className = 'recent-minutes';
+  minutesElement.textContent = `${minutes} min`;
+  item.append(timeElement, taskElement, minutesElement);
+  return item;
+}
 
-  if (entries.length === 0) {
+function renderRecentSessions(todayKey) {
+  const todaysEntries = stats.log.filter((entry) => dayKey(new Date(entry.ts)) === todayKey);
+  const finished = todaysEntries.filter((entry) => !entry.partial).length;
+  elements.recentHeading.textContent = finished > 0 ? `Erledigt heute (${finished})` : 'Erledigt heute';
+
+  const items = [];
+  const elapsedMinutes = Math.floor(getFocusElapsedMs() / MS_PER_MINUTE);
+  if (state.phase === 'focus' && getFocusElapsedMs() > 0) {
+    items.push(createRecentItem({
+      time: isRunning() ? 'jetzt' : 'pausiert',
+      task: state.task.trim() || 'Aktuelle Lernphase',
+      minutes: elapsedMinutes,
+      className: isRunning() ? 'is-live' : 'is-paused',
+    }));
+  }
+  todaysEntries.slice(-RECENT_SESSIONS_SHOWN).reverse().forEach((entry) => {
+    items.push(createRecentItem({
+      time: new Date(entry.ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+      task: entry.task || 'Lernphase',
+      minutes: entry.minutes,
+      className: entry.partial ? 'is-partial' : '',
+      note: entry.partial ? 'teilweise' : '',
+    }));
+  });
+
+  if (items.length === 0) {
     const empty = document.createElement('li');
     empty.className = 'recent-empty';
-    empty.textContent = 'Noch keine Lerneinheit heute – leg los!';
-    elements.recentList.replaceChildren(empty);
-    return;
+    empty.textContent = 'Noch nichts heute – deine erste Einheit erscheint hier.';
+    items.push(empty);
   }
+  elements.recentList.replaceChildren(...items);
+}
 
-  elements.recentList.replaceChildren(...entries.map((entry) => {
-    const item = document.createElement('li');
-    const time = document.createElement('time');
-    time.dateTime = new Date(entry.ts).toISOString();
-    time.textContent = new Date(entry.ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    const task = document.createElement('span');
-    task.className = 'recent-task';
-    task.textContent = entry.task || 'Lernphase';
-    const minutes = document.createElement('span');
-    minutes.className = 'recent-minutes';
-    minutes.textContent = `${entry.minutes} min`;
-    item.append(time, task, minutes);
-    return item;
-  }));
+/** Small reward moments: the unit counter pops, reaching the daily goal throws confetti. */
+function celebrateUnit(goalReached) {
+  const tile = elements.sessionTile;
+  tile.classList.remove('is-popping');
+  void tile.offsetWidth; // restart the animation
+  tile.classList.add('is-popping');
+  if (goalReached) launchConfetti();
+}
+
+function launchConfetti() {
+  if (reducedMotion) return;
+  const colors = ['#ff7a59', '#ff4f8b', '#8b5cf6', '#2dd4bf', '#facc15', '#60a5fa'];
+  const layer = document.createElement('div');
+  layer.className = 'confetti';
+  layer.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < CONFETTI_PIECES; i += 1) {
+    const piece = document.createElement('i');
+    piece.style.setProperty('--x', `${(Math.random() * 2 - 1) * 45}vw`);
+    piece.style.setProperty('--y', `${60 + Math.random() * 40}vh`);
+    piece.style.setProperty('--r', `${Math.round(Math.random() * 720 - 360)}deg`);
+    piece.style.setProperty('--delay', `${Math.random() * 0.25}s`);
+    piece.style.background = colors[i % colors.length];
+    layer.append(piece);
+  }
+  document.body.append(layer);
+  setTimeout(() => layer.remove(), CONFETTI_DURATION_MS);
 }
 
 // ---------------------------------------------------------------------------
@@ -745,7 +1024,7 @@ function applySettingsChange(durationBefore) {
   state.round = Math.min(state.round, settings.roundsPerCycle);
   const durationAfter = getPhaseDurationMs(state.phase);
   if (durationAfter !== durationBefore && !isRunning()) {
-    commitFocusProgress();
+    showAchievements(finalizeFocusPhase(false).achievements);
     state.phaseDurationMs = durationAfter;
     state.remainingMs = durationAfter;
   }
@@ -887,15 +1166,26 @@ function showBrowserNotification(message) {
   }
 }
 
+/** Shows a message; if one is already visible, it waits its turn instead of replacing it. */
 function showToast(message) {
-  elements.toast.textContent = message;
-  elements.toast.hidden = false;
+  const toast = elements.toast;
+  if (!toast.hidden) {
+    if (toast.textContent !== message && !toastQueue.includes(message) && toastQueue.length < TOAST_QUEUE_LIMIT) {
+      toastQueue.push(message);
+    }
+    return;
+  }
+  toast.textContent = message;
+  toast.hidden = false;
   clearTimeout(toastTimeoutId);
   toastTimeoutId = setTimeout(hideToast, TOAST_DURATION_MS);
 }
 
 function hideToast() {
+  clearTimeout(toastTimeoutId);
   elements.toast.hidden = true;
+  const next = toastQueue.shift();
+  if (next) setTimeout(() => showToast(next), 300);
 }
 
 // ---------------------------------------------------------------------------
@@ -1108,7 +1398,10 @@ function bindEvents() {
   document.addEventListener('keydown', unlockAudio, { once: true });
   window.addEventListener('resize', resizeRainCanvas);
   // Background tabs throttle timers; refresh immediately when the tab becomes visible again.
+  // Save running focus time when the app goes to the background or closes.
+  window.addEventListener('pagehide', () => flushFocusProgress());
   document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushFocusProgress();
     if (isRunning()) tick();
     if (dayKey() !== renderedStatsDay) renderStats();
     syncWakeLock();

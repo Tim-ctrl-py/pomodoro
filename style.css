@@ -844,8 +844,53 @@ body.is-zen .icon-zen-off {
   padding: 26px 24px;
 }
 
+.stats-card .card-head {
+  align-items: flex-start;
+}
+
 .stats-card .card-head p::first-letter {
   text-transform: uppercase;
+}
+
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+  padding: 5px 11px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+}
+
+.live-badge[hidden] {
+  display: none;
+}
+
+.live-badge i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 2s ease-out infinite;
+}
+
+.stats-message {
+  margin: -6px 0 0;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.45;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent) 16%, transparent),
+    color-mix(in srgb, var(--accent-2) 8%, transparent));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: var(--radius-md);
 }
 
 .stat-tiles {
@@ -862,6 +907,7 @@ body.is-zen .icon-zen-off {
   background: rgba(0, 0, 0, 0.18);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
+  transition: border-color 0.4s ease, background 0.4s ease;
 }
 
 .stat-value {
@@ -877,25 +923,115 @@ body.is-zen .icon-zen-off {
   color: var(--text-muted);
 }
 
+.stat-tile.is-done {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, rgba(0, 0, 0, 0.18));
+}
+
+.stat-tile.is-done .stat-value {
+  color: var(--accent);
+}
+
+.stat-tile.is-popping {
+  animation: tile-pop 0.7s var(--ease);
+}
+
+@keyframes tile-pop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.1); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 25%, transparent); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+}
+
+#streak-tile.is-active {
+  border-color: rgba(250, 204, 21, 0.35);
+}
+
+#streak-tile.is-at-risk .stat-label {
+  color: #facc15;
+}
+
+/* --- Daily goal ------------------------------------------------------------ */
+
+.goal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.goal-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.goal-head span:last-child {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
 .goal-bar {
-  height: 8px;
-  margin-top: -6px;
+  --segments: 8;
+  position: relative;
+  height: 12px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
 }
 
-.goal-bar span {
-  display: block;
+/* Thin separators: one segment per unit of the daily goal */
+.goal-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: repeating-linear-gradient(90deg,
+    transparent 0,
+    transparent calc(100% / var(--segments) - 2px),
+    rgba(11, 10, 18, 0.65) calc(100% / var(--segments) - 2px),
+    rgba(11, 10, 18, 0.65) calc(100% / var(--segments)));
+  pointer-events: none;
+}
+
+.goal-fill,
+.goal-live {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
   width: 0;
-  height: 100%;
+}
+
+.goal-fill {
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  border-radius: inherit;
   transition: width 0.8s var(--ease);
 }
 
-.goal-bar.is-complete span {
-  box-shadow: 0 0 14px var(--accent);
+.goal-live {
+  background: repeating-linear-gradient(-45deg,
+    color-mix(in srgb, var(--accent) 70%, transparent) 0 6px,
+    color-mix(in srgb, var(--accent) 40%, transparent) 6px 12px);
+  background-size: 17px 17px;
+  animation: goal-stripes 1.2s linear infinite;
+  transition: width 0.25s linear, left 0.8s var(--ease);
+}
+
+@keyframes goal-stripes {
+  to { background-position: 17px 0; }
+}
+
+.goal-bar.is-complete .goal-fill {
+  box-shadow: 0 0 16px var(--accent);
+}
+
+/* --- Week chart -------------------------------------------------------------- */
+
+.mini-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .mini-heading {
@@ -907,11 +1043,37 @@ body.is-zen .icon-zen-off {
   color: var(--text-faint);
 }
 
+.chart-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+}
+
+.chart-legend i {
+  width: 14px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.45);
+}
+
 .week-chart {
+  --goal-line: 1; /* 0–1, set from script.js */
+  position: relative;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
-  height: 96px;
+  height: 104px;
+}
+
+/* Dashed daily-goal line across the bars (bars end 22px above the bottom: label area) */
+.week-chart::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(22px + (100% - 22px) * var(--goal-line));
+  border-top: 1px dashed rgba(255, 255, 255, 0.35);
+  pointer-events: none;
 }
 
 .week-day {
@@ -935,7 +1097,7 @@ body.is-zen .icon-zen-off {
   position: absolute;
   inset: auto 0 0;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
   transition: height 0.6s var(--ease);
 }
 
@@ -943,12 +1105,19 @@ body.is-zen .icon-zen-off {
   min-height: 4px;
 }
 
+.week-bar.is-goal {
+  background: color-mix(in srgb, var(--accent) 80%, transparent);
+}
+
 .week-day.is-today .week-bar {
   background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  box-shadow: 0 0 12px -2px var(--accent);
 }
 
 .week-label {
+  height: 16px;
   font-size: 0.72rem;
+  line-height: 16px;
   color: var(--text-faint);
 }
 
@@ -956,6 +1125,39 @@ body.is-zen .icon-zen-off {
   font-weight: 700;
   color: var(--text);
 }
+
+/* --- Records ------------------------------------------------------------------- */
+
+.records {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px 4px;
+  border-top: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.record {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.record-value {
+  font-size: 1.02rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.record-label {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+}
+
+/* --- Recent units ------------------------------------------------------------- */
 
 .recent-list {
   display: flex;
@@ -973,14 +1175,19 @@ body.is-zen .icon-zen-off {
   padding: 8px 12px;
   font-size: 0.86rem;
   background: rgba(0, 0, 0, 0.14);
+  border: 1px solid transparent;
   border-radius: 10px;
 }
 
-.recent-list time,
+.recent-time,
 .recent-minutes {
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
+}
+
+.recent-time {
+  min-width: 3.4em;
 }
 
 .recent-task {
@@ -991,11 +1198,61 @@ body.is-zen .icon-zen-off {
   white-space: nowrap;
 }
 
+.recent-task small {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+}
+
+.recent-list li.is-live {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, rgba(0, 0, 0, 0.14));
+}
+
+.recent-list li.is-live .recent-time {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.recent-list li.is-paused .recent-time {
+  color: var(--text-faint);
+}
+
+.recent-list li.is-partial {
+  opacity: 0.7;
+}
+
 .recent-list li.recent-empty {
   display: block;
   color: var(--text-faint);
   background: none;
   padding-left: 0;
+}
+
+/* --- Confetti (daily goal, records, milestones) ------------------------------- */
+
+.confetti {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.confetti i {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  width: 9px;
+  height: 14px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: confetti-burst 2.8s cubic-bezier(0.15, 0.6, 0.35, 1) var(--delay) forwards;
+}
+
+@keyframes confetti-burst {
+  0%   { opacity: 1; transform: translate(0, 0) rotate(0); }
+  25%  { opacity: 1; transform: translate(calc(var(--x) * 0.8), -18vh) rotate(calc(var(--r) * 0.4)); }
+  100% { opacity: 0; transform: translate(var(--x), var(--y)) rotate(var(--r)); }
 }
 
 /* ==========================================================================

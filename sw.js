@@ -7,7 +7,7 @@
  * Google Fonts: cached on first use so the font also works offline.
  */
 
-const CACHE_NAME = 'fokus-v1';
+const CACHE_NAME = 'fokus-v2';
 const APP_FILES = [
   './',
   './index.html',
