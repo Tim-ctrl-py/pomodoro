@@ -30,6 +30,7 @@ const AMBIENCE_SETTINGS = {
   maxRainGain: 0.9,
   maxMusicGain: 0.7,
   levelSmoothingSeconds: 0.1,
+  duckedGain: 0.3, // master volume while ducked (e.g. during breaks)
 };
 
 /** Calm, slowly rotating progression (MIDI note numbers): Fmaj7 – Em7 – Dm9 – Cmaj9. */
@@ -76,6 +77,7 @@ function createAmbience(initialLevels) {
   let noiseBuffer = null;
   let chordIndex = 0;
   let playing = false;
+  let ducked = false;
   let suspendTimeoutId = null;
 
   // --- Graph setup ---------------------------------------------------------
@@ -294,6 +296,11 @@ function createAmbience(initialLevels) {
     setParam(nodes.gammaDepth.gain, depth);
   }
 
+  function getMasterTarget() {
+    if (!playing) return 0;
+    return ducked ? AMBIENCE_SETTINGS.duckedGain : 1;
+  }
+
   function fadeMasterTo(target) {
     const gain = nodes.master.gain;
     gain.cancelScheduledValues(context.currentTime);
@@ -306,7 +313,7 @@ function createAmbience(initialLevels) {
     clearTimeout(suspendTimeoutId);
     context.resume();
     playing = true;
-    fadeMasterTo(1);
+    fadeMasterTo(getMasterTarget());
     startLoops();
   }
 
@@ -314,7 +321,7 @@ function createAmbience(initialLevels) {
     if (!playing) return;
     playing = false;
     stopLoops();
-    fadeMasterTo(0);
+    fadeMasterTo(getMasterTarget());
     // Suspend after the fade so the audio thread does not keep running in the background.
     suspendTimeoutId = setTimeout(() => context.suspend(), AMBIENCE_SETTINGS.fadeSeconds * 1000 + 300);
   }
@@ -324,10 +331,18 @@ function createAmbience(initialLevels) {
     if (context) applyLevels();
   }
 
+  /** Lowers the overall volume (true) or restores it (false) with a soft fade. */
+  function setDucked(value) {
+    if (ducked === value) return;
+    ducked = value;
+    if (playing) fadeMasterTo(getMasterTarget());
+  }
+
   return {
     start,
     stop,
     setLevel,
+    setDucked,
     isPlaying: () => playing,
   };
 }

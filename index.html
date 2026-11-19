@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0b0a12">
   <title>Pomodoro-Timer</title>
+  <link rel="icon" id="favicon" href="data:,">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
@@ -22,11 +23,26 @@
   <div class="app">
     <header class="topbar">
       <div class="brand"><span class="brand-mark"></span>fokus<span class="brand-dot">.</span></div>
-      <p class="shortcuts"><kbd>Leertaste</kbd> Start/Pause <kbd>R</kbd> Reset <kbd>M</kbd> Musik</p>
+      <div class="topbar-actions">
+        <p class="shortcuts"><kbd>Leertaste</kbd> Start/Pause <kbd>S</kbd> Weiter <kbd>M</kbd> Musik <kbd>Z</kbd> Zen</p>
+        <button type="button" class="icon-button is-small" id="zen-button" aria-pressed="false" aria-label="Zen-Modus" title="Zen-Modus (Z)">
+          <svg class="icon-zen-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+          <svg class="icon-zen-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
+        </button>
+        <button type="button" class="icon-button is-small" id="settings-button" aria-label="Einstellungen" title="Einstellungen (E)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+        </button>
+      </div>
     </header>
 
     <main class="card timer-card">
       <div class="phase-pill"><span class="pill-dot"></span><span id="phase-label">Lernphase</span></div>
+
+      <label class="task">
+        <span class="visually-hidden">Aktuelle Aufgabe</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+        <input type="text" id="task-input" maxlength="80" placeholder="Woran arbeitest du gerade?" autocomplete="off" enterkeyhint="done">
+      </label>
 
       <div class="ring-wrap">
         <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
@@ -40,8 +56,9 @@
           <circle class="ring-progress" id="ring-progress" cx="60" cy="60" r="54"/>
         </svg>
         <div class="ring-center">
-          <div class="time-display" id="time-display" role="timer">25:00</div>
+          <div class="time-display" id="time-display" role="timer" aria-live="off">25:00</div>
           <div class="next-up" id="next-up">Danach: 5 min Pause</div>
+          <button type="button" class="extend-button" id="extend-button" title="Um 5 Minuten verlängern (+)">+5 min</button>
         </div>
       </div>
 
@@ -51,7 +68,7 @@
       </div>
 
       <div class="controls">
-        <button type="button" class="icon-button" id="reset-button" aria-label="Zurücksetzen" title="Zurücksetzen (R)">
+        <button type="button" class="icon-button" id="reset-button" aria-label="Zurücksetzen" title="Phase zurücksetzen (R) – nochmal drücken für neuen Durchgang">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg>
         </button>
         <button type="button" class="play-button" id="toggle-button">
@@ -59,7 +76,7 @@
           <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>
           <span id="toggle-label">Start</span>
         </button>
-        <button type="button" class="icon-button" id="skip-button" aria-label="Phase überspringen" title="Phase überspringen">
+        <button type="button" class="icon-button" id="skip-button" aria-label="Phase überspringen" title="Phase überspringen (S)">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 6.2v11.6a1 1 0 0 0 1.6.8l8-5.8a1 1 0 0 0 0-1.6l-8-5.8a1 1 0 0 0-1.6.8z"/><rect x="16.5" y="5" width="2.5" height="14" rx="1.2"/></svg>
         </button>
       </div>
@@ -67,16 +84,17 @@
       <fieldset class="segmented" id="duration-picker">
         <legend>Länge der Lernphase</legend>
         <div class="segments">
-          <label><input type="radio" name="focus-duration" value="25" checked><span><strong>25 <em>min</em></strong><small>5 min Pause</small></span></label>
-          <label><input type="radio" name="focus-duration" value="40"><span><strong>40 <em>min</em></strong><small>10 min Pause</small></span></label>
-          <label><input type="radio" name="focus-duration" value="50"><span><strong>50 <em>min</em></strong><small>10 min Pause</small></span></label>
+          <label><input type="radio" name="focus-duration" value="0"><span><strong>25 <em>min</em></strong><small>5 min Pause</small></span></label>
+          <label><input type="radio" name="focus-duration" value="1"><span><strong>40 <em>min</em></strong><small>10 min Pause</small></span></label>
+          <label><input type="radio" name="focus-duration" value="2"><span><strong>50 <em>min</em></strong><small>10 min Pause</small></span></label>
+          <label><input type="radio" name="focus-duration" value="custom" id="custom-preset"><span><strong id="custom-focus-label">Eigene</strong><small id="custom-break-label">anpassen</small></span></label>
         </div>
         <p class="segmented-hint">Zum Ändern den Timer pausieren.</p>
       </fieldset>
     </main>
 
     <aside class="card sound-card" id="sound-card">
-      <div class="sound-header">
+      <div class="card-head">
         <div>
           <h2>Lernklang</h2>
           <p>Regen · Ambient · 40 Hz</p>
@@ -112,11 +130,112 @@
       </div>
 
       <p class="sound-note">
-        Wird live im Browser erzeugt – kostenlos, ohne Downloads, ohne Lizenzfragen.
-        Der 40-Hz-Puls moduliert die Musik und ist nur hörbar, wenn die Musik an ist.
+        Live im Browser erzeugt, ohne Downloads. Der 40-Hz-Puls moduliert die Musik und ist nur bei eingeschalteter Musik hörbar.
       </p>
     </aside>
+
+    <section class="card stats-card" aria-labelledby="stats-title">
+      <div class="card-head">
+        <div>
+          <h2 id="stats-title">Heute</h2>
+          <p id="stats-date"></p>
+        </div>
+      </div>
+
+      <div class="stat-tiles">
+        <div class="stat-tile">
+          <span class="stat-value" id="stat-sessions">0</span>
+          <span class="stat-label" id="stat-goal">von 8 Einheiten</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-value" id="stat-minutes">0 min</span>
+          <span class="stat-label">Fokuszeit</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-value" id="stat-streak">0</span>
+          <span class="stat-label" id="stat-streak-label">Tage in Folge</span>
+        </div>
+      </div>
+
+      <div class="goal-bar" id="goal-bar" role="progressbar" aria-label="Tagesziel" aria-valuemin="0" aria-valuemax="8" aria-valuenow="0">
+        <span id="goal-fill"></span>
+      </div>
+
+      <div>
+        <h3 class="mini-heading">Letzte 7 Tage</h3>
+        <div class="week-chart" id="week-chart" role="img"></div>
+      </div>
+
+      <div>
+        <h3 class="mini-heading">Erledigt</h3>
+        <ul class="recent-list" id="recent-list"></ul>
+      </div>
+    </section>
   </div>
+
+  <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
+    <form method="dialog" id="settings-form">
+      <header class="dialog-head">
+        <h2 id="settings-title">Einstellungen</h2>
+        <button type="submit" class="icon-button is-small" aria-label="Schließen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+
+      <p class="dialog-note" id="running-note">Der Timer läuft – geänderte Zeiten gelten ab der nächsten Phase.</p>
+
+      <section class="settings-group">
+        <h3>Zeiten (Minuten)</h3>
+        <div class="number-grid">
+          <label class="number-field"><span>Lernphase</span><input type="number" inputmode="numeric" min="1" max="120" data-setting="focusMinutes"></label>
+          <label class="number-field"><span>Kurze Pause</span><input type="number" inputmode="numeric" min="1" max="60" data-setting="shortBreakMinutes"></label>
+          <label class="number-field"><span>Lange Pause</span><input type="number" inputmode="numeric" min="1" max="90" data-setting="longBreakMinutes"></label>
+          <label class="number-field"><span>Runden bis lange Pause</span><input type="number" inputmode="numeric" min="1" max="12" data-setting="roundsPerCycle"></label>
+          <label class="number-field"><span>Tagesziel (Einheiten)</span><input type="number" inputmode="numeric" min="1" max="24" data-setting="dailyGoal"></label>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h3>Ablauf</h3>
+        <label class="switch-row"><span>Pausen automatisch starten</span><input type="checkbox" class="switch" data-setting="autoStartBreaks"></label>
+        <label class="switch-row"><span>Lernphasen automatisch starten</span><input type="checkbox" class="switch" data-setting="autoStartFocus"></label>
+        <label class="switch-row"><span>Lernklang in Pausen leiser</span><input type="checkbox" class="switch" data-setting="duckAmbienceInBreaks"></label>
+      </section>
+
+      <section class="settings-group">
+        <h3>Signal</h3>
+        <label class="slider">
+          <span class="slider-head">Lautstärke des Signaltons <output id="chime-volume-output">70</output></span>
+          <input type="range" min="0" max="100" data-setting="chimeVolume">
+        </label>
+        <div class="settings-row">
+          <button type="button" class="pill-button" id="test-chime-button">Signal testen</button>
+          <span class="notification-status" id="notification-status"></span>
+          <button type="button" class="pill-button" id="notification-button" hidden>Benachrichtigungen erlauben</button>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h3>Tastenkürzel</h3>
+        <dl class="shortcut-list">
+          <div><dt><kbd>Leertaste</kbd></dt><dd>Start / Pause</dd></div>
+          <div><dt><kbd>S</kbd></dt><dd>Phase überspringen</dd></div>
+          <div><dt><kbd>R</kbd></dt><dd>Phase zurücksetzen</dd></div>
+          <div><dt><kbd>⇧</kbd><kbd>R</kbd></dt><dd>Neuer Durchgang</dd></div>
+          <div><dt><kbd>+</kbd></dt><dd>5 Minuten verlängern</dd></div>
+          <div><dt><kbd>T</kbd></dt><dd>Aufgabe eingeben</dd></div>
+          <div><dt><kbd>M</kbd></dt><dd>Lernklang an/aus</dd></div>
+          <div><dt><kbd>Z</kbd></dt><dd>Zen-Modus</dd></div>
+          <div><dt><kbd>E</kbd></dt><dd>Einstellungen</dd></div>
+        </dl>
+      </section>
+
+      <footer class="dialog-foot">
+        <button type="button" class="text-button danger" id="reset-stats-button">Statistik löschen</button>
+        <button type="submit" class="pill-button is-primary">Fertig</button>
+      </footer>
+    </form>
+  </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 

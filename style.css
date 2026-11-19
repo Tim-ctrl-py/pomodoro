@@ -188,6 +188,10 @@ kbd {
   .topbar {
     grid-column: 1 / -1;
   }
+
+  .timer-card {
+    grid-row: span 2;
+  }
 }
 
 @media (max-width: 640px) {
@@ -204,6 +208,7 @@ kbd {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   padding: 28px 24px 24px;
 }
 
@@ -244,7 +249,7 @@ body.is-running .pill-dot {
   position: relative;
   width: min(330px, 76vw);
   aspect-ratio: 1;
-  margin: 22px 0 18px;
+  margin: 16px 0 18px;
 }
 
 .ring {
@@ -445,7 +450,7 @@ body.is-running .play-button .icon-pause {
 
 .segments {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 4px;
   padding: 4px;
   background: rgba(0, 0, 0, 0.22);
@@ -539,21 +544,21 @@ body.is-running .play-button .icon-pause {
   padding: 26px 24px;
 }
 
-.sound-header {
+.card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
 
-.sound-header h2 {
+.card-head h2 {
   margin: 0;
   font-size: 1.3rem;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
 
-.sound-header p {
+.card-head p {
   margin: 4px 0 0;
   font-size: 0.85rem;
   color: var(--text-muted);
@@ -710,6 +715,565 @@ body.is-running .play-button .icon-pause {
 }
 
 /* ==========================================================================
+   Topbar actions, task field, extend button
+   ========================================================================== */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-actions .shortcuts {
+  margin-right: 8px;
+}
+
+.icon-button.is-small {
+  width: 40px;
+  height: 40px;
+}
+
+.icon-button.is-small svg {
+  width: 18px;
+  height: 18px;
+}
+
+.icon-zen-off,
+body.is-zen .icon-zen-on {
+  display: none;
+}
+
+body.is-zen .icon-zen-off {
+  display: block;
+}
+
+.task {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(100%, 360px);
+  margin-top: 16px;
+  padding: 0 14px;
+  color: var(--text-faint);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.25s ease, color 0.25s ease;
+}
+
+.task svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.task input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 0;
+  font: inherit;
+  font-size: 0.98rem;
+  font-weight: 500;
+  text-align: center;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  outline: none;
+  text-overflow: ellipsis;
+}
+
+.task input::placeholder {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+.task:hover,
+.task:focus-within {
+  color: var(--accent);
+  border-bottom-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.extend-button {
+  margin-top: 4px;
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.extend-button:hover {
+  color: var(--text);
+  background: var(--glass-strong);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.extend-button:focus-visible,
+.task:focus-within,
+.pill-button:focus-visible,
+.text-button:focus-visible,
+.switch:focus-visible,
+.number-field input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.task:focus-within {
+  outline: none;
+}
+
+/* ==========================================================================
+   Stats card
+   ========================================================================== */
+
+.stats-card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 26px 24px;
+}
+
+.stats-card .card-head p::first-letter {
+  text-transform: uppercase;
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 12px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+}
+
+.stat-value {
+  font-size: 1.45rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stat-label {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.goal-bar {
+  height: 8px;
+  margin-top: -6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+
+.goal-bar span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  border-radius: inherit;
+  transition: width 0.8s var(--ease);
+}
+
+.goal-bar.is-complete span {
+  box-shadow: 0 0 14px var(--accent);
+}
+
+.mini-heading {
+  margin: 0 0 10px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.week-chart {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  height: 96px;
+}
+
+.week-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+}
+
+.week-track {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  max-width: 28px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 7px;
+}
+
+.week-bar {
+  position: absolute;
+  inset: auto 0 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  transition: height 0.6s var(--ease);
+}
+
+.week-bar.has-value {
+  min-height: 4px;
+}
+
+.week-day.is-today .week-bar {
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+}
+
+.week-label {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+}
+
+.week-day.is-today .week-label {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 12px;
+  font-size: 0.86rem;
+  background: rgba(0, 0, 0, 0.14);
+  border-radius: 10px;
+}
+
+.recent-list time,
+.recent-minutes {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.recent-task {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-list li.recent-empty {
+  display: block;
+  color: var(--text-faint);
+  background: none;
+  padding-left: 0;
+}
+
+/* ==========================================================================
+   Settings dialog
+   ========================================================================== */
+
+.settings-dialog {
+  width: min(520px, calc(100% - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  color: var(--text);
+  background: rgba(22, 20, 32, 0.92);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.8);
+  -webkit-backdrop-filter: blur(28px);
+  backdrop-filter: blur(28px);
+}
+
+.settings-dialog[open] {
+  animation: dialog-in 0.35s var(--ease);
+}
+
+.settings-dialog::backdrop {
+  background: rgba(5, 4, 10, 0.55);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+}
+
+.settings-dialog form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 22px 24px 24px;
+}
+
+.dialog-head,
+.dialog-foot,
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dialog-head h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.dialog-note {
+  margin: -8px 0 0;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: 12px;
+}
+
+.dialog-note[hidden] {
+  display: none;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-group h3 {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.number-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.number-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.number-field input {
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 26px;
+  margin: 0;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.25s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: transform 0.25s var(--ease);
+}
+
+.switch:checked {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+
+.switch:checked::after {
+  transform: translateX(18px);
+}
+
+.settings-row {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.notification-status {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.pill-button {
+  padding: 9px 16px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s var(--ease);
+}
+
+.pill-button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.pill-button.is-primary {
+  padding: 10px 26px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+}
+
+.pill-button[hidden] {
+  display: none;
+}
+
+.text-button {
+  padding: 8px 0;
+  font-size: 0.84rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.text-button.danger {
+  color: #ff8a8a;
+}
+
+.text-button.danger:hover {
+  text-decoration: underline;
+}
+
+.shortcut-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.shortcut-list div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shortcut-list dt {
+  min-width: 82px;
+}
+
+.shortcut-list dd {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.shortcut-list kbd {
+  margin: 0 4px 0 0;
+}
+
+/* ==========================================================================
+   Zen mode: only the timer stays
+   ========================================================================== */
+
+body.is-zen .app {
+  max-width: 600px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body.is-zen .sound-card,
+body.is-zen .stats-card,
+body.is-zen .segmented,
+body.is-zen .shortcuts,
+body.is-zen #settings-button,
+body.is-zen .extend-button {
+  display: none;
+}
+
+body.is-zen .timer-card {
+  grid-row: auto;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+body.is-zen .ring-wrap {
+  width: min(440px, 82vw);
+}
+
+body.is-zen .time-display {
+  font-size: clamp(4rem, 19vw, 6.6rem);
+}
+
+body.is-zen .task input:placeholder-shown {
+  visibility: hidden;
+}
+
+body.is-zen .task svg {
+  display: none;
+}
+
+/* ==========================================================================
    Toast (fallback when browser notifications are not allowed)
    ========================================================================== */
 
@@ -756,6 +1320,19 @@ body.is-running .play-button .icon-pause {
   .play-button {
     min-width: 132px;
     padding: 0 22px;
+  }
+
+  .segments strong {
+    font-size: 1.05rem;
+  }
+
+  .segments small {
+    font-size: 0.64rem;
+    white-space: nowrap;
+  }
+
+  .stat-value {
+    font-size: 1.2rem;
   }
 }
 
