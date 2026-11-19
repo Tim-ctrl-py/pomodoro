@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b0a12">
+  <title>Pomodoro-Timer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-phase="focus">
+  <!-- Decorative background: animated color glows and a rain layer -->
+  <div class="backdrop" aria-hidden="true">
+    <div class="glow glow-a"></div>
+    <div class="glow glow-b"></div>
+    <div class="glow glow-c"></div>
+  </div>
+  <canvas class="rain-canvas" id="rain-canvas" aria-hidden="true"></canvas>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark"></span>fokus<span class="brand-dot">.</span></div>
+      <p class="shortcuts"><kbd>Leertaste</kbd> Start/Pause <kbd>R</kbd> Reset <kbd>M</kbd> Musik</p>
+    </header>
+
+    <main class="card timer-card">
+      <div class="phase-pill"><span class="pill-dot"></span><span id="phase-label">Lernphase</span></div>
+
+      <div class="ring-wrap">
+        <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+          <defs>
+            <linearGradient id="ring-gradient" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" class="ring-stop-a"/>
+              <stop offset="100%" class="ring-stop-b"/>
+            </linearGradient>
+          </defs>
+          <circle class="ring-track" cx="60" cy="60" r="54"/>
+          <circle class="ring-progress" id="ring-progress" cx="60" cy="60" r="54"/>
+        </svg>
+        <div class="ring-center">
+          <div class="time-display" id="time-display" role="timer">25:00</div>
+          <div class="next-up" id="next-up">Danach: 5 min Pause</div>
+        </div>
+      </div>
+
+      <div class="rounds">
+        <div class="round-dots" id="round-dots" aria-hidden="true"></div>
+        <p class="round-counter" id="round-counter">Lernphase 1 von 4</p>
+      </div>
+
+      <div class="controls">
+        <button type="button" class="icon-button" id="reset-button" aria-label="Zurücksetzen" title="Zurücksetzen (R)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg>
+        </button>
+        <button type="button" class="play-button" id="toggle-button">
+          <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+          <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>
+          <span id="toggle-label">Start</span>
+        </button>
+        <button type="button" class="icon-button" id="skip-button" aria-label="Phase überspringen" title="Phase überspringen">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 6.2v11.6a1 1 0 0 0 1.6.8l8-5.8a1 1 0 0 0 0-1.6l-8-5.8a1 1 0 0 0-1.6.8z"/><rect x="16.5" y="5" width="2.5" height="14" rx="1.2"/></svg>
+        </button>
+      </div>
+
+      <fieldset class="segmented" id="duration-picker">
+        <legend>Länge der Lernphase</legend>
+        <div class="segments">
+          <label><input type="radio" name="focus-duration" value="25" checked><span><strong>25 <em>min</em></strong><small>5 min Pause</small></span></label>
+          <label><input type="radio" name="focus-duration" value="40"><span><strong>40 <em>min</em></strong><small>10 min Pause</small></span></label>
+          <label><input type="radio" name="focus-duration" value="50"><span><strong>50 <em>min</em></strong><small>10 min Pause</small></span></label>
+        </div>
+        <p class="segmented-hint">Zum Ändern den Timer pausieren.</p>
+      </fieldset>
+    </main>
+
+    <aside class="card sound-card" id="sound-card">
+      <div class="sound-header">
+        <div>
+          <h2>Lernklang</h2>
+          <p>Regen · Ambient · 40 Hz</p>
+        </div>
+        <button type="button" class="sound-toggle" id="sound-toggle" aria-pressed="false" aria-label="Lernklang abspielen" title="Lernklang an/aus (M)">
+          <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+          <span class="equalizer"><i></i><i></i><i></i><i></i></span>
+        </button>
+      </div>
+
+      <div class="sliders">
+        <label class="slider">
+          <span class="slider-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 8a3.5 3.5 0 0 1 .5 7H7z"/><path d="M8 18.5l-1 2M12 18.5l-1 2M16 18.5l-1 2"/></svg>
+            Regen <output>60</output>
+          </span>
+          <input type="range" min="0" max="100" value="60" data-sound-layer="rain">
+        </label>
+        <label class="slider">
+          <span class="slider-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>
+            Musik <output>45</output>
+          </span>
+          <input type="range" min="0" max="100" value="45" data-sound-layer="music">
+        </label>
+        <label class="slider">
+          <span class="slider-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5 0 1.5-6 3-6s1.5 12 3 12 1.5-12 3-12 1.5 12 3 12 1.5-12 3-12 1.5 6 3 6"/></svg>
+            40-Hz-Puls <output>40</output>
+          </span>
+          <input type="range" min="0" max="100" value="40" data-sound-layer="gamma">
+        </label>
+      </div>
+
+      <p class="sound-note">
+        Wird live im Browser erzeugt – kostenlos, ohne Downloads, ohne Lizenzfragen.
+        Der 40-Hz-Puls moduliert die Musik und ist nur hörbar, wenn die Musik an ist.
+      </p>
+    </aside>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="ambience.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

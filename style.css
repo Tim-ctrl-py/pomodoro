@@ -1,0 +1,769 @@
+/* ==========================================================================
+   Design tokens
+   Registered custom properties let the phase colors fade smoothly.
+   ========================================================================== */
+
+@property --accent   { syntax: '<color>'; inherits: true; initial-value: #ff7a59; }
+@property --accent-2 { syntax: '<color>'; inherits: true; initial-value: #ff4f8b; }
+@property --accent-3 { syntax: '<color>'; inherits: true; initial-value: #8b5cf6; }
+
+:root {
+  --bg: #0b0a12;
+  --text: #f5f4fa;
+  --text-muted: rgba(245, 244, 250, 0.62);
+  --text-faint: rgba(245, 244, 250, 0.38);
+  --glass: rgba(255, 255, 255, 0.055);
+  --glass-strong: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --radius-lg: 28px;
+  --radius-md: 16px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --color-transition: --accent 1.2s ease, --accent-2 1.2s ease, --accent-3 1.2s ease;
+}
+
+body[data-phase="focus"]      { --accent: #ff7a59; --accent-2: #ff4f8b; --accent-3: #8b5cf6; }
+body[data-phase="shortBreak"] { --accent: #2dd4bf; --accent-2: #34d399; --accent-3: #0ea5e9; }
+body[data-phase="longBreak"]  { --accent: #818cf8; --accent-2: #60a5fa; --accent-3: #c084fc; }
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  transition: var(--color-transition);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* ==========================================================================
+   Background: glows + rain canvas
+   ========================================================================== */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at top, rgba(255, 255, 255, 0.04), transparent 60%),
+    var(--bg);
+}
+
+.glow {
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.38;
+  transition: var(--color-transition);
+  animation: drift 26s ease-in-out infinite alternate;
+}
+
+.glow-a { top: -25vmax; left: -15vmax; background: var(--accent); }
+.glow-b { bottom: -30vmax; right: -20vmax; background: var(--accent-2); animation-duration: 32s; animation-delay: -8s; }
+.glow-c { top: 30%; left: 40%; width: 40vmax; height: 40vmax; background: var(--accent-3); opacity: 0.22; animation-duration: 38s; animation-delay: -15s; }
+
+@keyframes drift {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(6vmax, 4vmax) scale(1.08); }
+  100% { transform: translate(-4vmax, 7vmax) scale(0.95); }
+}
+
+.rain-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+/* ==========================================================================
+   Layout
+   ========================================================================== */
+
+.app {
+  width: 100%;
+  max-width: 980px;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 4px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 18px -2px var(--accent);
+  transition: var(--color-transition);
+}
+
+.brand-dot {
+  color: var(--accent);
+  margin-left: -10px;
+}
+
+.shortcuts {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+}
+
+kbd {
+  display: inline-block;
+  margin: 0 4px 0 10px;
+  padding: 2px 7px;
+  font: inherit;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+}
+
+.card {
+  position: relative;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 30px 60px -30px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  backdrop-filter: blur(28px) saturate(140%);
+}
+
+@media (min-width: 900px) {
+  .app {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .topbar {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .shortcuts {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   Timer card
+   ========================================================================== */
+
+.timer-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 24px 24px;
+}
+
+.phase-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+}
+
+.pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 var(--accent);
+  transition: var(--color-transition);
+}
+
+body.is-running .pill-dot {
+  animation: pulse 2s ease-out infinite;
+}
+
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent); }
+  100% { box-shadow: 0 0 0 10px transparent; }
+}
+
+/* --- Progress ring ------------------------------------------------------- */
+
+.ring-wrap {
+  position: relative;
+  width: min(330px, 76vw);
+  aspect-ratio: 1;
+  margin: 22px 0 18px;
+}
+
+.ring {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+
+.ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 5;
+}
+
+.ring-progress {
+  fill: none;
+  stroke: url(#ring-gradient);
+  stroke-width: 5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 60%, transparent));
+  transition: stroke-dashoffset 0.6s var(--ease);
+}
+
+.ring-stop-a { stop-color: var(--accent); transition: var(--color-transition); }
+.ring-stop-b { stop-color: var(--accent-2); transition: var(--color-transition); }
+
+.ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.time-display {
+  font-size: clamp(3.4rem, 15vw, 5rem);
+  font-weight: 200;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.next-up {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* --- Rounds ---------------------------------------------------------------- */
+
+.rounds {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.round-dots {
+  display: flex;
+  gap: 8px;
+}
+
+.round-dot {
+  width: 28px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background 0.4s ease, width 0.4s var(--ease);
+}
+
+.round-dot.is-done {
+  background: color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.round-dot.is-current {
+  width: 44px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+.round-counter {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* --- Controls ------------------------------------------------------------- */
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 26px 0 8px;
+}
+
+.play-button,
+.icon-button,
+.sound-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.2s var(--ease), background 0.2s ease, box-shadow 0.3s ease;
+}
+
+.play-button {
+  gap: 10px;
+  min-width: 156px;
+  height: 64px;
+  padding: 0 30px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-radius: 999px;
+  box-shadow: 0 14px 34px -12px var(--accent), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.play-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+.icon-button {
+  width: 52px;
+  height: 52px;
+  color: var(--text-muted);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+}
+
+.icon-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.play-button:hover,
+.icon-button:hover,
+.sound-toggle:hover {
+  transform: translateY(-2px);
+}
+
+.icon-button:hover {
+  color: var(--text);
+  background: var(--glass-strong);
+}
+
+.play-button:active,
+.icon-button:active,
+.sound-toggle:active {
+  transform: scale(0.96);
+}
+
+.play-button:focus-visible,
+.icon-button:focus-visible,
+.sound-toggle:focus-visible,
+.segments input:focus-visible + span,
+.slider input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Swap play/pause icons based on the running state */
+.icon-pause,
+body.is-running .play-button .icon-play {
+  display: none;
+}
+
+body.is-running .play-button .icon-pause {
+  display: block;
+}
+
+/* --- Duration picker (segmented control) --------------------------------- */
+
+.segmented {
+  width: 100%;
+  margin: 22px 0 0;
+  padding: 0;
+  border: none;
+}
+
+.segmented legend {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--text-faint);
+}
+
+.segments {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+}
+
+.segments label {
+  cursor: pointer;
+}
+
+.segments input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segments span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  border-radius: 12px;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+.segments strong {
+  display: inline;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.segments em {
+  font-size: 0.8rem;
+  font-style: normal;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.segments small {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+}
+
+.segments label:hover span {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.segments input:checked + span {
+  background: var(--glass-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.segments input:checked + span strong {
+  color: var(--accent);
+}
+
+.segmented-hint {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  text-align: center;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.segmented:disabled .segments {
+  opacity: 0.45;
+}
+
+.segmented:disabled label {
+  cursor: not-allowed;
+}
+
+.segmented:disabled .segmented-hint {
+  opacity: 1;
+}
+
+/* ==========================================================================
+   Sound card
+   ========================================================================== */
+
+.sound-card {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 26px 24px;
+}
+
+.sound-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sound-header h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.sound-header p {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.sound-toggle {
+  flex-shrink: 0;
+  width: 60px;
+  height: 60px;
+  color: var(--text);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+}
+
+.sound-toggle svg {
+  width: 22px;
+  height: 22px;
+}
+
+.sound-toggle[aria-pressed="true"] {
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+  box-shadow: 0 12px 30px -12px var(--accent);
+}
+
+.equalizer {
+  display: none;
+  align-items: flex-end;
+  gap: 3px;
+  height: 20px;
+}
+
+.equalizer i {
+  width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  background: currentColor;
+  transform-origin: bottom;
+  animation: equalize 1.1s ease-in-out infinite;
+}
+
+.equalizer i:nth-child(2) { animation-delay: -0.3s; }
+.equalizer i:nth-child(3) { animation-delay: -0.6s; }
+.equalizer i:nth-child(4) { animation-delay: -0.15s; }
+
+@keyframes equalize {
+  0%, 100% { transform: scaleY(0.3); }
+  50%      { transform: scaleY(1); }
+}
+
+.sound-toggle[aria-pressed="true"] .icon-play { display: none; }
+.sound-toggle[aria-pressed="true"] .equalizer { display: flex; }
+
+/* --- Sliders --------------------------------------------------------------- */
+
+.sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.slider-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.slider-head svg {
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+  transition: color 1.2s ease;
+}
+
+.slider-head output {
+  margin-left: auto;
+  min-width: 3ch;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text-muted);
+}
+
+.slider input {
+  --fill: 50%;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.slider input::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2)) 0 / var(--fill) 100% no-repeat,
+    rgba(255, 255, 255, 0.1);
+}
+
+.slider input::-webkit-slider-thumb {
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.slider input::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.slider input::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+.slider input::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.sound-note {
+  margin: auto 0 0;
+  padding: 14px 16px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+}
+
+/* ==========================================================================
+   Toast (fallback when browser notifications are not allowed)
+   ========================================================================== */
+
+.toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  z-index: 10;
+  width: calc(100% - 32px);
+  max-width: 420px;
+  padding: 14px 20px;
+  font-weight: 600;
+  text-align: center;
+  background: rgba(20, 19, 30, 0.82);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 20px 40px -16px rgba(0, 0, 0, 0.7), 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  transform: translateX(-50%);
+  animation: toast-in 0.5s var(--ease);
+  cursor: pointer;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, -16px); }
+}
+
+/* ==========================================================================
+   Small screens & reduced motion
+   ========================================================================== */
+
+@media (max-width: 400px) {
+  .timer-card,
+  .sound-card {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .controls {
+    gap: 12px;
+  }
+
+  .play-button {
+    min-width: 132px;
+    padding: 0 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
