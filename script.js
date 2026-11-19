@@ -1137,4 +1137,13 @@ function init() {
   else commit();
 }
 
+/** Enables offline use when served over http(s), e.g. as an installed app from GitHub Pages. */
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
+  navigator.serviceWorker.register('sw.js').catch(() => {
+    // Offline support is optional: the timer works without it.
+  });
+}
+
 init();
+registerServiceWorker();
